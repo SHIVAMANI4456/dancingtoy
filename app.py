@@ -94,14 +94,17 @@ if not start_ani:
     plot_spot.plotly_chart(create_frame(0), use_container_width=True)
 
 # Active Animation Loop
+# --- ANIMATION LOGIC ---
 if start_ani:
     fps = 25
     t_ani = np.linspace(0, 4, fps * 4)
-    # Scale down frequency for visual clarity in the browser
+    # Visual scaling to prevent screen flicker at high Hz
     visual_freq = car_freq if car_freq < 10 else 5 + (car_freq / 10)
     displacement = output_amp * np.sin(2 * np.pi * visual_freq * t_ani)
 
-    for y in displacement:
-        # Crucial: Use a static key or no key at all within the loop to prevent re-rendering the whole page
-        plot_spot.plotly_chart(create_frame(y), use_container_width=True)
-        time.sleep(0.04) # Match FPS
+    for i, y in enumerate(displacement):
+        # We add a fixed 'key' string here. 
+        # This prevents the DuplicateElementId error by telling Streamlit
+        # to overwrite the same chart element in every iteration.
+        plot_spot.plotly_chart(create_frame(y), use_container_width=True, key="toy_animation")
+        time.sleep(0.04)
