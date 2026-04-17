@@ -2,19 +2,18 @@ import streamlit as st
 import numpy as np
 import plotly.graph_objects as go
 
-# --- 1. THE PHYSICS ENGINE (Internalized Backend) ---
+# --- 1. THE PHYSICS ENGINE ---
 class DynamicsEngine:
-    """Solves the SDOF motion using 4th-order Runge-Kutta (RK4)."""
     @staticmethod
     def solve_rk4(m, k, zeta, freq_hz, amp_mm, duration=3, fps=60):
         dt = 1.0 / fps
         t_steps = np.arange(0, duration, dt)
         omega_ext = 2 * np.pi * freq_hz
-        f_ext = (amp_mm * k / 1000)  # Convert mm to Force equivalent
+        f_ext = (amp_mm * k / 1000) 
         c_crit = 2 * np.sqrt(k * m)
         c = zeta * c_crit
         
-        state = np.array([0.0, 0.0])  # [displacement, velocity]
+        state = np.array([0.0, 0.0]) 
         results = []
 
         def ode_system(s, t):
@@ -33,11 +32,12 @@ class DynamicsEngine:
             
         return t_steps, np.array(results)
 
-# --- 2. PAGE CONFIGURATION ---
+# --- 2. PAGE CONFIG ---
 st.set_page_config(page_title="VibraToy Studio", layout="wide")
 
-st.markdown("""
-    <style>
+# CSS - Moved to a cleaner format to avoid Python 3.14 parsing issues
+css_style = """
+<style>
     .toy-box {
         background: radial-gradient(circle, #1a1c24 0%, #000000 100%);
         border-radius: 20px;
@@ -47,41 +47,37 @@ st.markdown("""
         height: 550px;
         border: 1px solid #3d444d;
     }
-    </style>
-    """, unsafe_content_with_html=True)
+</style>
+"""
+st.markdown(body=css_style, unsafe_content_with_html=True)
 
-# --- 3. SIDEBAR CONTROLS ---
+# --- 3. SIDEBAR ---
 with st.sidebar:
     st.title("🛠️ Mechanical Lab")
     char_map = {"Robot": "🤖", "Cat": "🐱", "Alien": "👽", "Panda": "🐼"}
-    toy_char = st.selectbox("Select Character", list(char_map.keys()))
+    toy_char = st.selectbox("Select Character", options=list(char_map.keys()))
     
     st.divider()
-    st.subheader("Physical Properties")
     m = st.slider("Head Mass (kg)", 0.05, 1.0, 0.2)
     k = st.slider("Spring Stiffness (N/m)", 10, 1000, 250)
     zeta = st.slider("Damping Ratio (ζ)", 0.01, 0.5, 0.1)
     
     st.divider()
-    st.subheader("External Vibration")
     f_in = st.slider("Input Frequency (Hz)", 1, 50, 12)
     amp_in = st.slider("Road Intensity (mm)", 1, 10, 5)
 
-# --- 4. DATA PROCESSING ---
+# --- 4. PHYSICS LOGIC ---
 t, displacements = DynamicsEngine.solve_rk4(m, k, zeta, f_in, amp_in)
-# Peak displacement for the animation logic
-max_d = np.max(np.abs(displacements)) * 1000 # Convert to mm for visual scale
+max_d = np.max(np.abs(displacements)) * 1000 
 
-# --- 5. VISUALIZATION LAYOUT ---
+# --- 5. UI LAYOUT ---
 col1, col2 = st.columns([1.5, 1])
 
 with col1:
     st.subheader("Live Digital Twin")
     
-    # SVG Animation Logic
-    # We use CSS variables to link the math to the visual
     anim_duration = 1 / (f_in/4) if f_in > 4 else 1 / f_in
-    visual_amp = min(max_d * 2, 40) # Safety cap to keep emoji on screen
+    visual_amp = min(max_d * 2, 40) 
     
     toy_svg = f"""
     <div class="toy-box">
@@ -112,25 +108,16 @@ with col1:
 
 with col2:
     st.subheader("Engineering Analysis")
-    
-    # Performance Metrics
     fn = (1/(2*np.pi)) * np.sqrt(k/m)
-    st.metric("Natural Frequency", f"{fn:.2f} Hz")
-    st.metric("Amplitude Gain", f"{(max_d/amp_in):.2f}x")
+    st.metric(label="Natural Frequency", value=f"{fn:.2f} Hz")
+    st.metric(label="Amplitude Gain", value=f"{(max_d/amp_in):.2f}x")
 
-    # Time-History Plot
     fig = go.Figure()
     fig.add_trace(go.Scatter(x=t[:200], y=displacements[:200]*1000, 
                              line=dict(color='#00FF41', width=2), name="Motion"))
     fig.update_layout(
-        title="Displacement vs Time (Steady State)",
-        xaxis_title="Time (s)",
-        yaxis_title="Pos (mm)",
         template="plotly_dark",
         height=300,
-        margin=dict(l=0,r=0,b=0,t=40)
+        margin=dict(l=0,r=0,b=0,t=20)
     )
     st.plotly_chart(fig, use_container_width=True)
-
-st.divider()
-st.caption("🚀 Optimized for Streamlit Community Cloud Deployment | Physics Engine: RK4 Integrator")
