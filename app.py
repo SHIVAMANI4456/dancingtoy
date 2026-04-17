@@ -1,135 +1,85 @@
 import streamlit as st
 import numpy as np
-import matplotlib.pyplot as plt
-import time
+import pandas as pd
+import plotly.graph_objects as go
 
-st.set_page_config(page_title="Dancing Toy Dashboard", layout="wide")
+# --- PAGE CONFIG ---
+st.set_page_config(page_title="Dancing Toy Simulator", layout="wide")
 
-# ---------- HEADER ----------
-st.markdown(
-    "<h1 style='text-align: center;'>🧸 Dancing Dashboard Toy Simulator</h1>",
-    unsafe_allow_html=True
-)
-
-st.markdown(
-    "<p style='text-align: center;'>Visualizing vibration-driven motion using a spring-mass-damper system</p>",
-    unsafe_allow_html=True
-)
-
-st.divider()
-
-# ---------- SIDEBAR ----------
-st.sidebar.header("🎛️ Control Panel")
-
-m = st.sidebar.slider("Mass (kg)", 0.1, 1.0, 0.3)
-k = st.sidebar.slider("Spring Stiffness (N/m)", 10, 500, 120)
-c = st.sidebar.slider("Damping", 0.1, 10.0, 1.0)
-F0 = st.sidebar.slider("Force Amplitude", 0.1, 10.0, 1.0)
-input_freq = st.sidebar.slider("Input Frequency (Hz)", 1, 30, 12)
-
-omega_input = 2 * np.pi * input_freq
-
-# ---------- CALCULATIONS ----------
-fn = (1/(2*np.pi)) * np.sqrt(k/m)
-
-A = F0 / np.sqrt((k - m*omega_input**2)**2 + (c*omega_input)**2)
-
-# ---------- METRICS ----------
-col1, col2, col3 = st.columns(3)
-
-col1.metric("Natural Frequency (Hz)", f"{fn:.2f}")
-col2.metric("Input Frequency (Hz)", f"{input_freq}")
-col3.metric("Amplitude", f"{A:.3f}")
-
-st.divider()
-
-# ---------- RESONANCE STATUS ----------
-if abs(fn - input_freq) < 2:
-    st.success("🔥 Resonance! Maximum dancing effect")
-else:
-    st.warning("⚠️ Not in resonance range")
-
-# ---------- LAYOUT ----------
-left, right = st.columns([1,1])
-
-# ---------- GRAPH ----------
-with left:
-    st.subheader("📈 Frequency Response")
-
-    freq = np.linspace(0.1, 30, 400)
-    omega = 2 * np.pi * freq
-
-    X = F0 / np.sqrt((k - m*omega**2)**2 + (c*omega)**2)
-
-    fig1, ax1 = plt.subplots()
-    ax1.plot(freq, X)
-    ax1.axvline(fn, linestyle='--', label="Natural Frequency")
-    ax1.set_xlabel("Frequency (Hz)")
-    ax1.set_ylabel("Amplitude")
-    ax1.legend()
-
-    st.pyplot(fig1)
-
-# ---------- ANIMATION ----------
-with right:
-    st.subheader("🧸 Live Toy Animation")
-
-    placeholder = st.empty()
-
-    t_vals = np.linspace(0, 5, 160)
-
-    for t in t_vals:
-        x = A * np.sin(omega_input * t)
-
-        fig, ax = plt.subplots(figsize=(4,6))
-
-        # ----- BASE -----
-        ax.add_patch(plt.Rectangle((-0.5, -1.8), 1, 0.3))
-
-        # ----- SPRING (zig-zag) -----
-        n_coils = 12
-        y_vals = np.linspace(-1.5, x, n_coils * 2)
-        x_vals = []
-
-        for i in range(len(y_vals)):
-            if i % 2 == 0:
-                x_vals.append(-0.2)
-            else:
-                x_vals.append(0.2)
-
-        ax.plot(x_vals, y_vals, linewidth=2)
-
-        # ----- BODY -----
-        body_y = x - 0.4
-        ax.add_patch(plt.Rectangle((-0.2, body_y), 0.4, 0.5))
-
-        # ----- HEAD -----
-        head_y = x + 0.3
-        head = plt.Circle((0, head_y), 0.25)
-        ax.add_patch(head)
-
-        # ----- FACE -----
-        # Eyes
-        ax.plot(-0.08, head_y + 0.05, 'o', markersize=4)
-        ax.plot(0.08, head_y + 0.05, 'o', markersize=4)
-
-        # Smile
-        smile_x = np.linspace(-0.1, 0.1, 50)
-        smile_y = head_y - 0.05 - 0.05 * (smile_x**2)*20
-        ax.plot(smile_x, smile_y)
-
-        # ----- SETTINGS -----
-        ax.set_xlim(-1, 1)
-        ax.set_ylim(-2, 2)
-        ax.axis('off')
-
-        ax.set_title("Dancing Toy (Spring-Mass System)")
-
-        placeholder.pyplot(fig)
-# ---------- EXPLANATION ----------
+st.title("🕺 Dancing Dashboard Toy: Vibration Simulator")
 st.markdown("""
-### 🧠 How it works
-- The toy behaves like a **spring-mass-damper system**
-- When input frequency ≈ natural frequency → **resonance**
-- This produces large oscillations → **dancing effect**
+This dashboard simulates the motion of a non-electronic dashboard toy. 
+It models the toy as a **Spring-Mass-Damper system** excited by car vibrations.
 """)
+
+# --- SIDEBAR CONTROLS ---
+st.sidebar.header("Design Parameters")
+mass = st.sidebar.slider("Toy Mass (kg)", 0.05, 0.50, 0.15, step=0.01)
+k_stiffness = st.sidebar.slider("Spring Stiffness (N/m)", 10, 500, 100, step=10)
+damping_ratio = st.sidebar.slider("Damping Ratio (ζ)", 0.01, 0.50, 0.10, step=0.01)
+
+st.sidebar.header("Vehicle Input")
+car_freq = st.sidebar.slider("Road Vibration Frequency (Hz)", 1, 50, 15)
+
+# --- PHYSICS CALCULATIONS ---
+# Natural Frequency: ωn = sqrt(k/m)
+wn = np.sqrt(k_stiffness / mass)
+fn = wn / (2 * np.pi)
+
+# Frequency Ratio: r = f / fn
+freq_range = np.linspace(0.1, 60, 500)
+r_range = freq_range / fn
+r_input = car_freq / fn
+
+# Magnification Factor (Amplitude Ratio): 
+# MF = 1 / sqrt((1-r^2)^2 + (2*zeta*r)^2)
+def get_magnification(r, zeta):
+    return 1 / np.sqrt((1 - r**2)**2 + (2 * zeta * r)**2)
+
+mf_curve = get_magnification(r_range, damping_ratio)
+current_mf = get_magnification(r_input, damping_ratio)
+
+# --- VISUALIZATION ---
+col1, col2 = st.columns([2, 1])
+
+with col1:
+    st.subheader("Frequency Response Analysis")
+    fig = go.Figure()
+    
+    # Plot resonance curve
+    fig.add_trace(go.Scatter(x=freq_range, y=mf_curve, name="System Response", line=dict(color='royalblue', width=3)))
+    
+    # Highlight current operating point
+    fig.add_trace(go.Scatter(x=[car_freq], y=[current_mf], mode='markers+text', 
+                             name='Current Operation', text=["Working Point"],
+                             textposition="top right", marker=dict(color='red', size=12)))
+
+    fig.update_layout(
+        xaxis_title="Input Frequency (Hz)",
+        yaxis_title="Amplitude Magnification (Output/Input)",
+        hovermode="x unified",
+        template="plotly_white"
+    )
+    st.plotly_chart(fig, use_container_広告=True)
+
+with col2:
+    st.subheader("Engineering Metrics")
+    st.metric("Natural Frequency (fn)", f"{fn:.2f} Hz")
+    st.metric("Current Gain", f"{current_mf:.2f}x")
+    
+    # Logic for user feedback
+    if 0.9 < r_input < 1.1:
+        st.error("⚠️ RESONANCE DETECTED: The toy will shake violently!")
+    elif current_mf > 1.5:
+        st.success("✅ GOOD DANCING: Noticeable motion achieved.")
+    else:
+        st.warning("💤 STATIC: Toy is barely moving. Lower stiffness or increase mass.")
+
+# --- OSCILLATION PREVIEW (TIME DOMAIN) ---
+st.divider()
+st.subheader("Real-time Oscillation Preview")
+t = np.linspace(0, 2, 500)
+# Simple sine wave representation of steady-state response
+y = current_mf * np.sin(2 * np.pi * car_freq * t)
+df_time = pd.DataFrame({"Time (s)": t, "Displacement": y})
+st.line_chart(df_time, x="Time (s)", y="Displacement")
