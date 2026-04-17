@@ -35,22 +35,6 @@ class DynamicsEngine:
 # --- 2. PAGE CONFIG ---
 st.set_page_config(page_title="VibraToy Studio", layout="wide")
 
-# CSS - Moved to a cleaner format to avoid Python 3.14 parsing issues
-css_style = """
-<style>
-    .toy-box {
-        background: radial-gradient(circle, #1a1c24 0%, #000000 100%);
-        border-radius: 20px;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        height: 550px;
-        border: 1px solid #3d444d;
-    }
-</style>
-"""
-st.markdown(body=css_style, unsafe_content_with_html=True)
-
 # --- 3. SIDEBAR ---
 with st.sidebar:
     st.title("🛠️ Mechanical Lab")
@@ -76,11 +60,22 @@ col1, col2 = st.columns([1.5, 1])
 with col1:
     st.subheader("Live Digital Twin")
     
+    # Calculate visual timing
     anim_duration = 1 / (f_in/4) if f_in > 4 else 1 / f_in
     visual_amp = min(max_d * 2, 40) 
     
-    toy_svg = f"""
-    <div class="toy-box">
+    # COMBINED CSS + SVG (Bypasses st.markdown entirely)
+    full_component_html = f"""
+    <div style="
+        background: radial-gradient(circle, #1a1c24 0%, #000000 100%);
+        border-radius: 20px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 550px;
+        border: 1px solid #3d444d;
+        overflow: hidden;
+    ">
         <svg width="300" height="500" viewBox="0 0 200 400">
             <rect x="10" y="360" width="180" height="30" rx="10" fill="#333" />
             <g id="toy-assembly">
@@ -94,30 +89,4 @@ with col1:
                     0% {{ transform: rotate(0deg) translateX(0px); }}
                     25% {{ transform: rotate({visual_amp/2}deg) translateX({visual_amp}px); }}
                     75% {{ transform: rotate(-{visual_amp/2}deg) translateX(-{visual_amp}px); }}
-                    100% {{ transform: rotate(0deg) translateX(0px); }}
-                }}
-                #toy-assembly {{
-                    transform-origin: 100px 360px;
-                    animation: sway {anim_duration}s infinite ease-in-out;
-                }}
-            </style>
-        </svg>
-    </div>
-    """
-    st.components.v1.html(toy_svg, height=580)
-
-with col2:
-    st.subheader("Engineering Analysis")
-    fn = (1/(2*np.pi)) * np.sqrt(k/m)
-    st.metric(label="Natural Frequency", value=f"{fn:.2f} Hz")
-    st.metric(label="Amplitude Gain", value=f"{(max_d/amp_in):.2f}x")
-
-    fig = go.Figure()
-    fig.add_trace(go.Scatter(x=t[:200], y=displacements[:200]*1000, 
-                             line=dict(color='#00FF41', width=2), name="Motion"))
-    fig.update_layout(
-        template="plotly_dark",
-        height=300,
-        margin=dict(l=0,r=0,b=0,t=20)
-    )
-    st.plotly_chart(fig, use_container_width=True)
+                    100%
